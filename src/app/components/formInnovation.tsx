@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { z } from "zod";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
@@ -90,20 +91,67 @@ type Grp = {
   //... more properties
 };
 
+interface FormData {
+  enterpriseName: string;
+  registrationNumber: string;
+  address: {
+    street: string;
+    city: string;
+    region: string;
+    postCode: string;
+  };
+  // ... other properties
+}
+
 export default function FormInnovation() {
   type Category = "saudi" | "nonSaudi";
   const [step, setStep] = useState(1);
   const totalSteps = 10;
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
+
+  const step1Schema = z.object({
+    enterpriseName: z.string().min(1, "Enterprise name is required"),
+    registrationNumber: z.string().min(1, "Registration number is required"),
+    // address: z.object({
+    street: z.string().min(1, "Street is required"),
+    city: z.string().min(1, "City is required"),
+    region: z.string().min(1, "Region is required"),
+    postCode: z.string().min(1, "Post code is required"),
+    //}),
+    website: z.string().url("Invalid URL"),
+    email: z.string().email("Invalid email address"),
+    contactNumber: z.string().min(1, "Contact number is required"),
+    establishmentYear: z.string().regex(/^\d{4}$/, "Must be a valid year"),
+    businessActivity: z.string().min(1, "Business activity is required"),
+    isicCode: z.string().min(1, "ISIC code is required"),
+  });
+
+  const step2Schema = z.object({
+    partOfGroup: z.enum(["domestic", "foreign", "none"], {
+      required_error: "Please select an option",
+    }),
+    headOfficeCountry: z.string().optional(),
+  });
+
+  const step4Schema = z.object({
+    firstYear: z.string().regex(/^\d{4}$/, "Must be a valid year"),
+    lastYear: z.string().regex(/^\d{4}$/, "Must be a valid year"),
+    turnoverPercentage: z.object({
+      ksa: z.number().min(0, "Please enter a valid percentage"),
+      gulfStates: z.number().min(0, "Please enter a valid percentage"),
+      nonGulfStates: z.number().min(0, "Please enter a valid percentage"),
+    }),
+  });
 
   const [formData, setFormData] = useState({
     enterpriseName: "",
     registrationNumber: "",
-    address: {
-      street: "",
-      city: "",
-      region: "",
-      postCode: "",
-    },
+
+    street: "",
+    city: "",
+    region: "",
+    postCode: "",
+
     website: "",
     email: "",
     contactNumber: "",
@@ -141,10 +189,10 @@ export default function FormInnovation() {
         },
       },
     },
-    turnover: {
-      firstYear: "",
-      lastYear: "",
-    },
+
+    firstYear: "",
+    lastYear: "",
+
     turnoverPercentage: {
       ksa: 0,
       gulfStates: 0,
@@ -325,6 +373,43 @@ export default function FormInnovation() {
     },
   });
 
+  const validateStep = () => {
+    let schema;
+    switch (step) {
+      case 1:
+        schema = step1Schema;
+        break;
+      case 2:
+        schema = step2Schema;
+        break;
+      //case 3:
+      // schema = step3Schema
+      //  break;
+
+      case 4:
+        schema = step4Schema;
+        break;
+      // ... add cases for other steps
+      default:
+        return true;
+    }
+
+    try {
+      schema.parse(formData);
+      setErrors({});
+      return true;
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const newErrors: { [key: string]: string } = {};
+        error.issues.forEach((issue) => {
+          newErrors[issue.path.join(".")] = issue.message;
+        });
+        setErrors(newErrors);
+      }
+      return false;
+    }
+  };
+
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
@@ -334,14 +419,7 @@ export default function FormInnovation() {
       [name]: value,
     }));
   };
-  /*
-  const handleCheckboxChange = (name: string, checked: boolean) => {
-    setFormData((prevData) => ({
-      ...prevData,
-      [name]: checked,
-    }));
-  };
-*/
+
   const handleNestedChange = (
     category: string,
     subCategory: string,
@@ -356,8 +434,11 @@ export default function FormInnovation() {
     }));
   };
 
-  const nextStep = () =>
-    setStep((prevStep) => Math.min(prevStep + 1, totalSteps));
+  const nextStep = () => {
+    if (validateStep()) {
+      setStep((prevStep) => Math.min(prevStep + 1, totalSteps));
+    }
+  };
   const prevStep = () => setStep((prevStep) => Math.max(prevStep - 1, 1));
 
   return (
@@ -390,6 +471,11 @@ export default function FormInnovation() {
                       onChange={handleInputChange}
                       required
                     />
+                    {errors.enterpriseName && (
+                      <p className="text-red-500 text-xs">
+                        {errors.enterpriseName}
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="registrationNumber">
@@ -402,6 +488,11 @@ export default function FormInnovation() {
                       onChange={handleInputChange}
                       required
                     />
+                    {errors.registrationNumber && (
+                      <p className="text-red-500 text-xs">
+                        {errors.registrationNumber}
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -410,44 +501,50 @@ export default function FormInnovation() {
                     id="street"
                     name="street"
                     placeholder="Street Name and Number"
-                    value={formData.address.street}
-                    onChange={(e) =>
-                      handleNestedChange("address", "street", e.target.value)
-                    }
+                    value={formData.street}
+                    onChange={handleInputChange}
                     required
                   />
+                  {errors.street && (
+                    <p className="text-red-500 text-xs">{errors.street}</p>
+                  )}
                   <div className="grid grid-cols-2 gap-4">
                     <Input
                       id="city"
                       name="city"
                       placeholder="City/Town"
-                      value={formData.address.city}
-                      onChange={(e) =>
-                        handleNestedChange("address", "city", e.target.value)
-                      }
+                      value={formData.city}
+                      onChange={handleInputChange}
                       required
                     />
+
+                    {errors.city && (
+                      <p className="text-red-500 text-xs">{errors.city}</p>
+                    )}
+
                     <Input
                       id="region"
                       name="region"
                       placeholder="Region/Province"
-                      value={formData.address.region}
-                      onChange={(e) =>
-                        handleNestedChange("address", "region", e.target.value)
-                      }
+                      value={formData.region}
+                      onChange={handleInputChange}
                       required
                     />
+                    {errors.region && (
+                      <p className="text-red-500 text-xs">{errors.region}</p>
+                    )}
                   </div>
                   <Input
                     id="postCode"
                     name="postCode"
                     placeholder="Post Code"
-                    value={formData.address.postCode}
-                    onChange={(e) =>
-                      handleNestedChange("address", "postCode", e.target.value)
-                    }
+                    value={formData.postCode}
+                    onChange={handleInputChange}
                     required
                   />
+                  {errors.postCode && (
+                    <p className="text-red-500 text-xs">{errors.postCode}</p>
+                  )}
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -459,6 +556,9 @@ export default function FormInnovation() {
                       value={formData.website}
                       onChange={handleInputChange}
                     />
+                    {errors.website && (
+                      <p className="text-red-500 text-xs">{errors.website}</p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="email">Email</Label>
@@ -470,6 +570,9 @@ export default function FormInnovation() {
                       onChange={handleInputChange}
                       required
                     />
+                    {errors.email && (
+                      <p className="text-red-500 text-xs">{errors.email}</p>
+                    )}
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -483,6 +586,11 @@ export default function FormInnovation() {
                       onChange={handleInputChange}
                       required
                     />
+                    {errors.contactNumber && (
+                      <p className="text-red-500 text-xs">
+                        {errors.contactNumber}
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="establishmentYear">
@@ -498,6 +606,11 @@ export default function FormInnovation() {
                       onChange={handleInputChange}
                       required
                     />
+                    {errors.establishmentYear && (
+                      <p className="text-red-500 text-xs">
+                        {errors.establishmentYear}
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -511,6 +624,11 @@ export default function FormInnovation() {
                     onChange={handleInputChange}
                     required
                   />
+                  {errors.businessActivity && (
+                    <p className="text-red-500 text-xs">
+                      {errors.businessActivity}
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="isicCode">ISIC Rev. 4 Code</Label>
@@ -521,6 +639,9 @@ export default function FormInnovation() {
                     onChange={handleInputChange}
                     required
                   />
+                  {errors.isicCode && (
+                    <p className="text-red-500 text-xs">{errors.isicCode}</p>
+                  )}
                 </div>
               </div>
             )}
@@ -536,6 +657,7 @@ export default function FormInnovation() {
                     enterprise part of?
                   </Label>
                   <RadioGroup
+                    required={true}
                     name="partOfGroup"
                     onValueChange={(value) =>
                       setFormData((prev) => ({ ...prev, partOfGroup: value }))
@@ -559,6 +681,9 @@ export default function FormInnovation() {
                       <Label htmlFor="none">Not part of any group</Label>
                     </div>
                   </RadioGroup>
+                  {errors.partOfGroup && (
+                    <p className="text-red-500 text-xs">{errors.partOfGroup}</p>
+                  )}
                 </div>
                 {formData.partOfGroup === "foreign" && (
                   <div className="space-y-2">
@@ -571,6 +696,11 @@ export default function FormInnovation() {
                       onChange={handleInputChange}
                       required
                     />
+                    {errors.headOfficeCountry && (
+                      <p className="text-red-500 text-xs">
+                        {errors.headOfficeCountry}
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
@@ -650,45 +780,39 @@ export default function FormInnovation() {
                 </h2>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="turnoverFirstYear">
+                    <Label htmlFor="firstYear">
                       Total turnover in 20XX [first year of the reference
                       period]
                     </Label>
                     <Input
-                      id="turnoverFirstYear"
-                      name="turnoverFirstYear"
+                      id="firstYear"
+                      name="firstYear"
                       type="number"
                       min="0"
-                      value={formData.turnover.firstYear}
-                      onChange={(e) =>
-                        handleNestedChange(
-                          "turnover",
-                          "firstYear",
-                          e.target.value
-                        )
-                      }
+                      value={formData.firstYear}
+                      onChange={handleInputChange}
                       required
                     />
+                    {errors.firstYear && (
+                      <p className="text-red-500 text-xs">{errors.firstYear}</p>
+                    )}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="turnoverLastYear">
+                    <Label htmlFor="lastYear">
                       Total turnover in 20XX [last year of the reference period]
                     </Label>
                     <Input
-                      id="turnoverLastYear"
-                      name="turnoverLastYear"
+                      id="lastYear"
+                      name="lastYear"
                       type="number"
                       min="0"
-                      value={formData.turnover.lastYear}
-                      onChange={(e) =>
-                        handleNestedChange(
-                          "turnover",
-                          "lastYear",
-                          e.target.value
-                        )
-                      }
+                      value={formData.lastYear}
+                      onChange={handleInputChange}
                       required
                     />
+                    {errors.lastYear && (
+                      <p className="text-red-500 text-xs">{errors.lastYear}</p>
+                    )}
                   </div>
                 </div>
                 <h3 className="text-lg font-semibold">
