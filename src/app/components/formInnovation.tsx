@@ -442,7 +442,7 @@ export default function FormInnovation() {
   const prevStep = () => setStep((prevStep) => Math.max(prevStep - 1, 1));
 
   return (
-    <div className="container mx-auto py-10">
+    <div className="container mx-auto py-28  ">
       <Card className="w-full max-w-4xl mx-auto">
         <CardHeader>
           <CardTitle>Innovation in KSA's Manufacturing Sector</CardTitle>
